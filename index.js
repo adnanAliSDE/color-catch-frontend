@@ -56,19 +56,19 @@ darkModeToggle.addEventListener('click', () => {
 
 // --- Initial Setup ---
 document.addEventListener('DOMContentLoaded', () => {
-// Starting the render backend instance as it automatically sleeps after inactivity.
-
-fetch(HOST).then((response) => {
-    if (response.ok) {
-        return response.json()
-    } else {
-        console.error("Backend responded with an error:", response.status);
-    }
-}).then(({ message }) => {
-    console.log("Backend Server started:", message);
-}).catch((err) => {
-    console.error("Error fetching the backend:", err);
-});
+ 
+    // Starting the render backend instance as it automatically sleeps after inactivity.
+    fetch(`${HOST}/ping`).then((response) => {
+        if (response.ok) {
+            return response.json()
+        } else {
+            console.error("Backend responded with an error:", response.status);
+        }
+    }).then(({ message }) => {
+        console.log("Backend Server started:", message);
+    }).catch((err) => {
+        console.error("Error fetching the backend:", err);
+    });
 
 
     initializeTheme();
@@ -216,6 +216,11 @@ if (imageUpload) {
         event.stopPropagation();
 
         const file = event.target.files[0];
+        const fileSizeMB = file.size / (1024 * 1024);
+        if (fileSizeMB > 5) {
+            imageErrorMessage.textContent = "Your file exceeds the maximum limit of 5MB. Please choose an image smaller than 5MB.";
+            return;
+        }
         if (!file) return;
 
         paletteContainer.innerHTML = '';
