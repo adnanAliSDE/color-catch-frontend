@@ -1,18 +1,27 @@
 // Constants
-const HOST = "https://color-catch-backend.onrender.com";
+const clientHost = window.location.hostname
 
+let HOST;
+if (clientHost.toLowerCase() === 'localhost') {
+    HOST = "http://localhost:8080";
+} else {
+    HOST = "https://color-catch-backend.onrender.com";
+}
+
+console.log("Using backend HOST:", HOST);
 
 // DOM Elements
 const paletteContainer = document.getElementById("color-palette");
 const palettePlaceholder = document.getElementById("palette-placeholder");
-const colorInput = document.getElementById("color-input"); // Still needed for sidebar
-const visualizeBtn = document.getElementById("visualize-btn"); // Still needed for sidebar
-const manualErrorMessage = document.getElementById("manual-error-message"); // Still needed for sidebar
+const colorInput = document.getElementById("color-input");
+const visualizeBtn = document.getElementById("visualize-btn");
+const manualErrorMessage = document.getElementById("manual-error-message");
 
 const imageUpload = document.getElementById("image-upload");
 const imagePreviewContainer = document.getElementById("image-preview-container");
 const imagePreview = document.getElementById("image-preview");
 const imageErrorMessage = document.getElementById("image-error-message");
+const imageInfoMessage = document.getElementById("image-info-message");
 const loadingSpinner = document.getElementById("loading-spinner");
 
 const darkModeToggle = document.getElementById('dark-mode-toggle');
@@ -24,9 +33,7 @@ const openSidebarBtn = document.getElementById('open-sidebar-btn');
 const closeSidebarBtn = document.getElementById('close-sidebar-btn');
 const manualColorSidebar = document.getElementById('manual-color-sidebar');
 
-
 // --- Dark Mode Logic ---
-
 const applyTheme = (isDark) => {
     if (isDark) {
         document.documentElement.classList.add('dark');
@@ -45,7 +52,6 @@ const initializeTheme = () => {
     const isDarkModePreferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     const savedTheme = localStorage.getItem('color-theme');
     const isDark = savedTheme === 'dark' || (!savedTheme && isDarkModePreferred);
-
     applyTheme(isDark);
 };
 
@@ -56,23 +62,24 @@ darkModeToggle.addEventListener('click', () => {
 
 // --- Initial Setup ---
 document.addEventListener('DOMContentLoaded', () => {
- 
-    // Starting the render backend instance as it automatically sleeps after inactivity.
-    fetch(`${HOST}/ping`).then((response) => {
-        if (response.ok) {
-            return response.json()
-        } else {
-            console.error("Backend responded with an error:", response.status);
-        }
-    }).then(({ message }) => {
-        console.log("Backend Server started:", message);
-    }).catch((err) => {
-        console.error("Error fetching the backend:", err);
-    });
-
+    // Wake up the backend server
+    fetch(`${HOST}/ping`)
+        .then((response) => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                console.error("Backend responded with an error:", response.status);
+            }
+        })
+        .then(({ message }) => {
+            console.log("Backend Server started:", message);
+        })
+        .catch((err) => {
+            console.error("Error fetching the backend:", err);
+        });
 
     initializeTheme();
-    palettePlaceholder.textContent = 'Upload an image to see the palette.'; // Updated placeholder text
+    palettePlaceholder.textContent = 'Upload an image to see the palette.';
 });
 
 // --- Sidebar Logic ---
@@ -90,10 +97,44 @@ if (openSidebarBtn && closeSidebarBtn && manualColorSidebar) {
 
 // --- Helper Functions ---
 
-function displayColors(colors, errorElement) {
+/**
+ * Displays image metadata (size, downsampling info)
+ * @param {Object} metadata - Metadata from API response
+ */
+function displayImageMetadata(metadata) {
+    if (!metadata || !imageInfoMessage) return;
+
+    const { downsampled, original_size, processed_size } = metadata;
+
+    let message = `Original: ${original_size.width}×${original_size.height} (${original_size.megapixels}MP)`;
+
+    if (downsampled) {
+        message += ` → Processed: ${processed_size.width}×${processed_size.height} (${processed_size.megapixels}MP)`;
+        imageInfoMessage.classList.add('text-blue-600', 'dark:text-blue-400');
+        imageInfoMessage.classList.remove('text-gray-600', 'dark:text-gray-400');
+    } else {
+        imageInfoMessage.classList.add('text-gray-600', 'dark:text-gray-400');
+        imageInfoMessage.classList.remove('text-blue-600', 'dark:text-blue-400');
+    }
+
+    imageInfoMessage.textContent = message;
+}
+
+/**
+ * Displays colors in the palette
+ * @param {Array} colors - Array of hex color codes
+ * @param {HTMLElement} errorElement - Error message element
+ * @param {Object} metadata - Optional metadata about the image
+ */
+function displayColors(colors, errorElement, metadata = null) {
     paletteContainer.innerHTML = "";
     palettePlaceholder.classList.add('hidden');
     if (errorElement) errorElement.textContent = "";
+
+    // Display metadata if provided
+    if (metadata) {
+        displayImageMetadata(metadata);
+    }
 
     if (!Array.isArray(colors) || colors.length === 0) {
         const actionTaken = errorElement === manualErrorMessage || errorElement === imageErrorMessage;
@@ -188,22 +229,67 @@ function parseColorInput(inputText) {
     return colorsArray;
 }
 
+/**
+ * Validates file before upload
+ * @param {File} file - The file to validate
+ * @returns {Object} - {valid: boolean, error: string}
+ */
+function validateFile(file) {
+    const MAX_FILE_SIZE_MB = 5;
+    const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+
+    if (!file) {
+        return { valid: false, error: 'No file selected.' };
+    }
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        return {
+            valid: false,
+            error: 'Invalid file type. Please upload a JPG, JPEG, or PNG image.'
+        };
+    }
+
+    const fileSizeMB = file.size / (1024 * 1024);
+    if (fileSizeMB > MAX_FILE_SIZE_MB) {
+        return {
+            valid: false,
+            error: `File size (${fileSizeMB.toFixed(2)}MB) exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB.`
+        };
+    }
+
+    return { valid: true, error: null };
+}
+
+/**
+ * Resets the UI to initial state
+ */
+function resetUI() {
+    paletteContainer.innerHTML = '';
+    palettePlaceholder.textContent = 'Processing image...';
+    palettePlaceholder.classList.remove('hidden');
+    imageErrorMessage.textContent = '';
+    if (imageInfoMessage) imageInfoMessage.textContent = '';
+    manualErrorMessage.textContent = '';
+    colorInput.value = '';
+}
+
 // --- Event Listeners ---
 
-// Visualize Button (Manual Input - now in sidebar)
+// Visualize Button (Manual Input - in sidebar)
 if (visualizeBtn) {
     visualizeBtn.addEventListener("click", () => {
         const inputText = colorInput.value.trim();
         if (!inputText) {
             manualErrorMessage.textContent = "Please enter some color codes.";
-            displayColors([], manualErrorMessage); // Clear palette if input is empty
+            displayColors([], manualErrorMessage);
             return;
         }
-        manualErrorMessage.textContent = ""; // Clear previous errors
+        manualErrorMessage.textContent = "";
         const colors = parseColorInput(inputText);
         displayColors(colors, manualErrorMessage);
-        // Optionally close sidebar after visualizing
-        // if (manualColorSidebar) manualColorSidebar.classList.add('translate-x-full');
+
+        // Clear image info when manually entering colors
+        if (imageInfoMessage) imageInfoMessage.textContent = '';
     });
 } else {
     console.error("Visualize button not found!");
@@ -216,23 +302,21 @@ if (imageUpload) {
         event.stopPropagation();
 
         const file = event.target.files[0];
-        const fileSizeMB = file.size / (1024 * 1024);
-        if (fileSizeMB > 5) {
-            imageErrorMessage.textContent = "Your file exceeds the maximum limit of 5MB. Please choose an image smaller than 5MB.";
+
+        // Validate file
+        const validation = validateFile(file);
+        if (!validation.valid) {
+            imageErrorMessage.textContent = validation.error;
+            imageUpload.value = ''; // Reset input
             return;
         }
-        if (!file) return;
 
-        paletteContainer.innerHTML = '';
-        palettePlaceholder.textContent = 'Processing image...';
-        palettePlaceholder.classList.remove('hidden');
-        imageErrorMessage.textContent = '';
-        manualErrorMessage.textContent = '';
-        colorInput.value = '';
-
+        // Reset UI
+        resetUI();
         imagePreviewContainer.classList.remove('hidden');
         imagePreview.src = "";
 
+        // Show image preview
         const reader = new FileReader();
         reader.onload = (e) => {
             imagePreview.src = e.target.result;
@@ -246,6 +330,7 @@ if (imageUpload) {
         };
         reader.readAsDataURL(file);
 
+        // Fetch colors from API
         fetchColorsFromAPI(file);
     });
 } else {
@@ -253,7 +338,7 @@ if (imageUpload) {
 }
 
 /**
- * Fetches colors from API and displays them.
+ * Fetches colors from API and displays them with metadata.
  * @param {File} file - The image file to send to the API.
  */
 async function fetchColorsFromAPI(file) {
@@ -280,21 +365,34 @@ async function fetchColorsFromAPI(file) {
             try {
                 const errData = await response.json();
                 errorDetail = errData.detail || errorDetail;
-            } catch (e) { }
+            } catch (e) {
+                console.error("Error parsing error response:", e);
+            }
             throw new Error(errorDetail);
         }
 
         const data = await response.json();
+        console.log("API Response:", data); // Debug log
 
+        // Handle new response format with metadata
         if (data && Array.isArray(data.colors)) {
-            displayColors(data.colors, imageErrorMessage);
+            displayColors(data.colors, imageErrorMessage, data.metadata);
+
+            // Log metadata for debugging
+            if (data.metadata) {
+                console.log("Image metadata:", {
+                    downsampled: data.metadata.downsampled,
+                    original: `${data.metadata.original_size.width}×${data.metadata.original_size.height}`,
+                    processed: `${data.metadata.processed_size.width}×${data.metadata.processed_size.height}`
+                });
+            }
         } else {
             console.warn("Invalid response format from API:", data);
             imageErrorMessage.textContent = "Invalid response format from API.";
             displayColors([], imageErrorMessage);
         }
     } catch (err) {
-        console.error("Error caught in fetchColorsFromAPI:", err);
+        console.error("Error in fetchColorsFromAPI:", err);
         imageErrorMessage.textContent = `Failed to extract colors: ${err.message}`;
         displayColors([], imageErrorMessage);
     } finally {
