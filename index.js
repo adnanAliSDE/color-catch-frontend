@@ -1,14 +1,14 @@
 // Constants
-const clientHost = window.location.hostname
+const DEBUG = window.location.hostname.toLowerCase() === 'localhost';
 
 let HOST;
-if (clientHost.toLowerCase() === 'localhost') {
+if (DEBUG) {
     HOST = "http://localhost:8080";
 } else {
     HOST = "https://color-catch-backend.onrender.com";
 }
 
-console.log("Using backend HOST:", HOST);
+DEBUG && console.log("Using backend HOST:", HOST);
 
 // DOM Elements
 const paletteContainer = document.getElementById("color-palette");
@@ -68,14 +68,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response.ok) {
                 return response.json();
             } else {
-                console.error("Backend responded with an error:", response.status);
+                DEBUG && console.error("Backend responded with an error:", response.status);
             }
         })
         .then(({ message }) => {
-            console.log("Backend Server started:", message);
+           DEBUG && console.log("Backend Server started:", message);
         })
         .catch((err) => {
-            console.error("Error fetching the backend:", err);
+            DEBUG && console.error("Error fetching the backend:", err);
         });
 
     initializeTheme();
@@ -372,7 +372,7 @@ async function fetchColorsFromAPI(file) {
         }
 
         const data = await response.json();
-        console.log("API Response:", data); // Debug log
+        DEBUG && console.log("API Response:", data); // Debug log
 
         // Handle new response format with metadata
         if (data && Array.isArray(data.colors)) {
@@ -380,7 +380,7 @@ async function fetchColorsFromAPI(file) {
 
             // Log metadata for debugging
             if (data.metadata) {
-                console.log("Image metadata:", {
+                DEBUG && console.log("Image metadata:", {
                     downsampled: data.metadata.downsampled,
                     original: `${data.metadata.original_size.width}×${data.metadata.original_size.height}`,
                     processed: `${data.metadata.processed_size.width}×${data.metadata.processed_size.height}`
