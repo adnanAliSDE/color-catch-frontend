@@ -1,18 +1,6 @@
 // Constants
 const HOST = "https://color-catch-backend.onrender.com";
-// Starting the render backend instance as it automatically sleeps after inactivity.
 
-fetch(HOST).then((response) => {
-    if (response.ok) {
-        return response.json()
-    } else {
-        console.error("Backend responded with an error:", response.status);
-    }
-}).then(({ message }) => {
-    console.log("Backend Server started:", message);
-}).catch((err) => {
-    console.error("Error fetching the backend:", err);
-});
 
 // DOM Elements
 const paletteContainer = document.getElementById("color-palette");
@@ -68,6 +56,21 @@ darkModeToggle.addEventListener('click', () => {
 
 // --- Initial Setup ---
 document.addEventListener('DOMContentLoaded', () => {
+// Starting the render backend instance as it automatically sleeps after inactivity.
+
+fetch(HOST).then((response) => {
+    if (response.ok) {
+        return response.json()
+    } else {
+        console.error("Backend responded with an error:", response.status);
+    }
+}).then(({ message }) => {
+    console.log("Backend Server started:", message);
+}).catch((err) => {
+    console.error("Error fetching the backend:", err);
+});
+
+
     initializeTheme();
     palettePlaceholder.textContent = 'Upload an image to see the palette.'; // Updated placeholder text
 });
